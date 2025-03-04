@@ -1,0 +1,42 @@
+{
+    "credit_card": {
+        "pattern": "\\b\\d{13,16}\\b",
+        "description": "信用卡号",
+        "validator": null
+    },
+    "chinese_id": {
+        "pattern": "\\b\\d{17}[\\dXx]\\b",
+        "description": "身份证号",
+        "validator": null
+    },
+    "phone_number": {
+        "pattern": "\\b1\\d{10}\\b",
+        "description": "手机号码",
+        "validator": null
+    },
+    "strong_password": {
+        "pattern": "\\b.{8,}\\b",
+        "description": "高强度密码",
+        "validator": null
+    },
+    "weak_password": {
+        "pattern": "password|123456|admin|qwerty",
+        "description": "低强度密码",
+        "validator": null
+    },
+    "btc_address": {
+        "pattern": "\\b[13][a-zA-Z0-9]{26,33}\\b",
+        "description": "比特币地址",
+        "validator": null
+    },
+    "api_key": {
+        "pattern": "\\b[a-zA-Z0-9]{32,}\\b",
+        "description": "API密钥",
+        "validator": null
+    },
+    "email": {
+        "pattern": "\\b[^@]+@[^@]+\\.[^@]+\\b",
+        "description": "电子邮箱",
+        "validator": null
+    }
+}
