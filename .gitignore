@@ -3,3 +3,5 @@
 /PPT&Video/*
 encryption.key
 clipboard.db
+ModelTrainCode/Dataset/*
+ModelTrainCode/pretrained_models/*

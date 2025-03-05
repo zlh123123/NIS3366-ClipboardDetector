@@ -24,19 +24,20 @@ class LogInterface(Ui_log, QWidget):
         self.tableWidget.setBorderRadius(8)
         self.tableWidget.setWordWrap(False)
 
-        # 设置表格列
-        self.tableWidget.setColumnCount(4)
+        # 设置表格列 - 增加到5列，添加来源进程列
+        self.tableWidget.setColumnCount(5)
 
-        # 设置水平表头并隐藏垂直表头
+        # 设置水平表头并隐藏垂直表头 - 添加来源进程
         self.tableWidget.setHorizontalHeaderLabels(
-            [ "时间", "风险等级", "哈希值", "预览"]
+            ["时间", "风险等级", "哈希值", "来源进程", "预览"]
         )
 
-        # 设置列宽
+        # 设置列宽 - 调整以适应新列
         self.tableWidget.setColumnWidth(0, 160)  # 时间列
-        self.tableWidget.setColumnWidth(1, 100)  # 风险等级列
-        self.tableWidget.setColumnWidth(2, 200)  # 哈希值列
-        self.tableWidget.setColumnWidth(3, 350)  # 预览列较宽
+        self.tableWidget.setColumnWidth(1, 80)  # 风险等级列
+        self.tableWidget.setColumnWidth(2, 150)  # 哈希值列
+        self.tableWidget.setColumnWidth(3, 120)  # 来源进程列
+        self.tableWidget.setColumnWidth(4, 300)  # 预览列
 
         # 加载数据
         self.load_clipboard_data()
@@ -56,10 +57,10 @@ class LogInterface(Ui_log, QWidget):
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
 
-            # 获取最近的100条记录
+            # 获取最近的100条记录 - 添加process_name列
             cursor.execute(
                 """
-                SELECT id, timestamp, risk_level, content_hash, preview 
+                SELECT id, timestamp, risk_level, content_hash, process_name, preview 
                 FROM clipboard_logs
                 ORDER BY timestamp DESC
                 LIMIT 100
@@ -88,21 +89,26 @@ class LogInterface(Ui_log, QWidget):
                 time_item = QTableWidgetItem(formatted_time)
                 risk_item = QTableWidgetItem(log[2])
                 hash_item = QTableWidgetItem(
-                    log[3][:20] + "..." if len(log[3]) > 20 else log[3]
+                    log[3][:15] + "..." if len(log[3]) > 15 else log[3]
                 )
+                # 添加进程名列
+                process_name = log[4] if log[4] else "未知"
+                process_item = QTableWidgetItem(process_name)
+
                 preview_item = QTableWidgetItem(
-                    log[4][:50] + "..." if len(log[4]) > 50 else log[4]
+                    log[5][:40] + "..." if len(log[5]) > 40 else log[5]
                 )
 
                 # 为风险等级设置颜色
                 if log[2] in risk_colors:
                     risk_item.setForeground(risk_colors[log[2]])
 
-                # 修改设置项的顺序，移除ID项
+                # 修改设置项的顺序，添加进程名项
                 self.tableWidget.setItem(i, 0, time_item)
                 self.tableWidget.setItem(i, 1, risk_item)
                 self.tableWidget.setItem(i, 2, hash_item)
-                self.tableWidget.setItem(i, 3, preview_item)
+                self.tableWidget.setItem(i, 3, process_item)
+                self.tableWidget.setItem(i, 4, preview_item)
 
             conn.close()
 

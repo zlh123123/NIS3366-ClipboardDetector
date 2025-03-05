@@ -11,6 +11,7 @@ from qfluentwidgets import FluentIcon as FIF
 
 from view.stop_watch_interface import StopWatchInterface
 from view.loginterface import LogInterface
+import os
 
 
 class Window(SplitFluentWindow):
@@ -27,7 +28,7 @@ class Window(SplitFluentWindow):
 
     def initNavigation(self):
         # add sub interface
-        self.addSubInterface(self.logInterface, FIF.RINGER, "日志")
+        self.addSubInterface(self.logInterface, FIF.VPN, "日志")
         self.addSubInterface(self.stopWatchInterface, FIF.STOP_WATCH, '秒表')
 
 
@@ -35,8 +36,10 @@ class Window(SplitFluentWindow):
         self.navigationInterface.setExpandWidth(280)
 
     def initWindow(self):
-        self.resize(950, 560)
-        self.setWindowIcon(QIcon('./image/icon.png'))
+        self.resize(1000, 600)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        icon_path = os.path.join(script_dir, "image", "icon.png")
+        self.setWindowIcon(QIcon(icon_path))
         self.setWindowTitle('剪切板安全检测器')
 
         desktop = QApplication.desktop().availableGeometry()

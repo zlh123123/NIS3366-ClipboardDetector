@@ -1,15 +1,17 @@
 import pyperclip
 import time
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 import json
 from pathlib import Path
 import re
 from utils import luhn_checksum, validate_chinese_id
 from logger import ClipboardLogger
-from win10toast_click import ToastNotifier
-from desktop_notifier import DesktopNotifier, Button,Sound
-from desktop_notifier.common import DEFAULT_SOUND,Icon
+from desktop_notifier import DesktopNotifier, Button, Sound
+from desktop_notifier.common import DEFAULT_SOUND, Icon
 import asyncio
+import ctypes
+from ctypes import wintypes
+import psutil
 
 
 class SensitiveDetector:
@@ -82,6 +84,29 @@ class SensitiveDetector:
         return results
 
 
+def get_foreground_process_info() -> Tuple[str, str]:
+    """
+    获取当前前台窗口所属的进程信息
+
+    Returns:
+        Tuple[str, str]: (进程名称, 进程路径)
+    """
+    user32 = ctypes.windll.user32
+    hwnd = user32.GetForegroundWindow()
+
+    # 获取进程ID
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+
+    try:
+        process = psutil.Process(pid.value)
+        process_name = process.name()
+        process_path = process.exe()
+        return process_name, process_path
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        return "未知进程", ""
+
+
 async def show_security_notification(message: str) -> None:
     """
     显示桌面安全通知
@@ -134,8 +159,12 @@ async def monitor_clipboard_with_detection(
                     await asyncio.sleep(interval)
                     continue
 
+                # 获取前台进程信息
+                process_name, process_path = get_foreground_process_info()
+
                 print("\n" + "=" * 60)
                 print(f"检测到新的剪贴板内容:")
+                print(f"来源进程: {process_name} ({process_path})")
                 print("-" * 60)
                 print(current_content)
                 print("-" * 60)
@@ -155,7 +184,9 @@ async def monitor_clipboard_with_detection(
                     except Exception as e:
                         print(f"通知显示失败: {e}")
 
-                    logger.log_clipboard(current_content, results)
+                    logger.log_clipboard(
+                        current_content, results, process_name, process_path
+                    )
                     print("\n已记录到数据库")
                 else:
                     print("\n未发现敏感信息")
