@@ -6,13 +6,13 @@ import numpy as np
 import asyncio
 import ctypes
 import psutil
+import onnxruntime as ort
 from ctypes import wintypes
 from typing import Optional, Dict, Any, Tuple
 from pathlib import Path
 
 # 深度学习相关导入
-import torch
-from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
+from transformers import DistilBertTokenizer
 from tqdm import tqdm
 
 # 项目内部模块导入
@@ -39,13 +39,15 @@ class ModelLoadingProgressBar:
 
 
 class PrivacyDetector:
-    """基于深度学习的隐私信息检测器"""
+    """基于ONNX的隐私信息检测器"""
 
     def __init__(self):
         # 设置文件路径
         base_dir = Path(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
         self.dataset_dir = base_dir / "ModelTrainCode" / "Dataset"
-        self.model_path = self.dataset_dir / "privacy_detection_model.pth"
+        self.model_path = (
+            base_dir / "ModelTrainCode" / "onnx_model" / "model.onnx"
+        )  # ONNX模型文件
         self.map_path = self.dataset_dir / "label_map.json"
         self.model_save_dir = base_dir / "ModelTrainCode" / "pretrained_models"
 
@@ -59,29 +61,40 @@ class PrivacyDetector:
 
             # 初始化设备
             pbar.update(20)
-            self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-            print(f"使用设备: {self.device}")
+            print("检查可用执行提供程序...")
+            providers = ort.get_available_providers()
+            print(f"可用ONNX执行提供程序: {providers}")
+
+            # 优先使用GPU加速
+            if "CUDAExecutionProvider" in providers:
+                self.providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+                print("使用CUDA执行提供程序")
+            else:
+                self.providers = ["CPUExecutionProvider"]
+                print("使用CPU执行提供程序")
 
             # 加载tokenizer
             pbar.update(30)
             print("加载tokenizer...")
             self.tokenizer = DistilBertTokenizer.from_pretrained(self.model_save_dir)
 
-            # 加载模型
-            pbar.update(40)
-            print("加载模型架构...")
-            self.model = DistilBertForSequenceClassification.from_pretrained(
-                self.model_save_dir, num_labels=len(self.label_map)
-            )
-
-            # 加载模型权重
+            # 加载ONNX模型
             pbar.update(60)
-            print("加载模型权重...")
-            self.model.load_state_dict(
-                torch.load(self.model_path, map_location=self.device)
-            )
-            self.model.to(self.device)
-            self.model.eval()
+            print(f"加载ONNX模型: {self.model_path}")
+            try:
+                self.session = ort.InferenceSession(
+                    str(self.model_path), providers=self.providers
+                )
+                # 获取模型的输入输出名称
+                self.input_names = [input.name for input in self.session.get_inputs()]
+                self.output_names = [
+                    output.name for output in self.session.get_outputs()
+                ]
+                print(f"模型输入: {self.input_names}")
+                print(f"模型输出: {self.output_names}")
+            except Exception as e:
+                print(f"模型加载失败: {e}")
+                raise
 
             # 完成
             pbar.update(100)
@@ -90,7 +103,7 @@ class PrivacyDetector:
         print("隐私检测模型加载完成!")
 
     def detect(self, text, threshold=0.7):
-        """使用模型预测文本中的敏感信息"""
+        """使用ONNX模型预测文本中的敏感信息"""
         # 文本编码
         encoding = self.tokenizer.encode_plus(
             text,
@@ -98,17 +111,32 @@ class PrivacyDetector:
             max_length=self.max_len,
             padding="max_length",
             truncation=True,
-            return_tensors="pt",
+            return_tensors="np",  # 使用numpy而非pytorch
         )
 
-        # 转换为设备张量
-        input_ids = encoding["input_ids"].to(self.device)
-        attention_mask = encoding["attention_mask"].to(self.device)
+        # 准备输入
+        onnx_inputs = {
+            "input_ids": encoding["input_ids"],
+            "attention_mask": encoding["attention_mask"],
+        }
+
+        # 检查输入名称是否与模型期望的一致，否则调整
+        if set(self.input_names) != set(onnx_inputs.keys()):
+            print(f"调整输入名称以匹配模型: {self.input_names}")
+            onnx_inputs = {
+                name: (
+                    encoding["input_ids"]
+                    if "input_id" in name
+                    else encoding["attention_mask"]
+                )
+                for name in self.input_names
+            }
 
         # 推理
-        with torch.no_grad():
-            outputs = self.model(input_ids, attention_mask=attention_mask)
-            logits = outputs.logits.cpu().numpy()[0]
+        outputs = self.session.run(self.output_names, onnx_inputs)
+
+        # 处理输出 - 假设输出是logits
+        logits = outputs[0][0]  # 第一个输出的第一个样本
 
         # 计算概率
         probs = 1 / (1 + np.exp(-logits))  # sigmoid
@@ -188,7 +216,7 @@ async def monitor_clipboard_with_model_detection(
     """
     last_content: Optional[str] = None
     logger = ClipboardLogger()
-    print("\n开始使用模型监控剪贴板，按 Ctrl+C 停止...\n")
+    print("\n开始使用ONNX模型监控剪贴板，按 Ctrl+C 停止...\n")
 
     try:
         while True:

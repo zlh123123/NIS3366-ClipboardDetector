@@ -162,8 +162,11 @@ for epoch in range(NUM_EPOCHS):
 
     print(f"Epoch {epoch+1}/{NUM_EPOCHS} - Loss: {avg_loss:.4f}")
 
-    # 每10个epoch保存一次损失图表，或者在训练结束时
-    if (epoch + 1) % 10 == 0 or epoch == NUM_EPOCHS - 1:
+    # 每5个epoch保存一次损失图表，或者在训练结束时
+    if (epoch + 1) % 5 == 0 or epoch == NUM_EPOCHS - 1:
+        # 显示中文
+        plt.rcParams["font.sans-serif"] = ["SimHei"]
+        plt.rcParams["axes.unicode_minus"] = False
         plt.figure(figsize=(10, 6))
         plt.plot(epochs, losses, marker="o", linestyle="-", color="b")
         plt.title("训练损失曲线")
@@ -178,6 +181,8 @@ model_path = os.path.join(dataset_dir, "privacy_detection_model.pth")
 torch.save(model.state_dict(), model_path)
 
 # 训练结束后，保存最终的损失曲线
+plt.rcParams["font.sans-serif"] = ["SimHei"]
+plt.rcParams["axes.unicode_minus"] = False
 plt.figure(figsize=(10, 6))
 plt.plot(epochs, losses, marker="o", linestyle="-", color="b")
 plt.title("最终训练损失曲线")
@@ -199,11 +204,17 @@ quantized_model = torch.quantization.quantize_dynamic(
 quant_model_path = os.path.join(dataset_dir, "quantized_privacy_model.pth")
 torch.save(quantized_model.state_dict(), quant_model_path)
 
-# 转换并保存ONNX模型
+# 转换并保存ONNX模型(使用训练好的模型，而非从目录加载)
 onnx_model_dir = os.path.join(base_dir, "onnx_model")
 os.makedirs(onnx_model_dir, exist_ok=True)
+
+# 保存训练好的模型以用于ONNX导出
+model.save_pretrained(model_save_dir)
 
 # 使用Hugging Face Optimum库转换
 ORTModelForSequenceClassification.from_pretrained(
     model_save_dir, export=True
 ).save_pretrained(onnx_model_dir)
+
+# 添加ONNX模型验证步骤
+print(f"ONNX模型已保存至: {onnx_model_dir}")
