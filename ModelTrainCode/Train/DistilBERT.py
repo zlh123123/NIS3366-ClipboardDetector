@@ -3,6 +3,11 @@ from transformers import DistilBertTokenizer, DistilBertForSequenceClassificatio
 from torch.utils.data import Dataset, DataLoader
 import json
 import os
+from optimum.onnxruntime import ORTModelForSequenceClassification
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+from torch.utils.tensorboard import SummaryWriter
+
 
 script_dir = os.path.dirname(os.path.abspath(__file__))  # 获取当前脚本所在目录
 base_dir = os.path.dirname(script_dir)  # 获取ModelTrainCode目录
@@ -10,7 +15,7 @@ dataset_dir = os.path.join(base_dir, "Dataset")  # 获取Dataset目录
 
 # 配置参数
 MAX_LEN = 128
-BATCH_SIZE = 32
+BATCH_SIZE = 128
 NUM_EPOCHS = 20
 LEARNING_RATE = 2e-5
 
@@ -77,6 +82,15 @@ class PrivacyDataset(Dataset):
 model_save_dir = os.path.join(base_dir, "pretrained_models")
 os.makedirs(model_save_dir, exist_ok=True)  # 确保目录存在
 
+# 创建TensorBoard日志目录
+logs_dir = os.path.join(base_dir, "logs")
+os.makedirs(logs_dir, exist_ok=True)
+writer = SummaryWriter(logs_dir)
+
+# 创建图表保存目录
+charts_dir = os.path.join(base_dir, "charts")
+os.makedirs(charts_dir, exist_ok=True)
+
 # 初始化模型和tokenizer
 tokenizer = DistilBertTokenizer.from_pretrained(model_save_dir)
 model = DistilBertForSequenceClassification.from_pretrained(
@@ -100,12 +114,20 @@ model = model.to(device)
 optimizer = torch.optim.AdamW(model.parameters(), lr=LEARNING_RATE)
 loss_fn = torch.nn.BCEWithLogitsLoss()
 
+# 用于记录训练损失的列表
+losses = []
+epochs = []
+
 # 训练循环
 for epoch in range(NUM_EPOCHS):
     model.train()
     total_loss = 0
 
-    for batch in train_loader:
+    # 使用tqdm创建进度条
+    progress_bar = tqdm(train_loader, desc=f"Epoch {epoch+1}/{NUM_EPOCHS}")
+
+    batch_losses = []
+    for i, batch in enumerate(progress_bar):
         optimizer.zero_grad()
 
         input_ids = batch["input_ids"].to(device)
@@ -120,10 +142,68 @@ for epoch in range(NUM_EPOCHS):
         loss.backward()
         optimizer.step()
 
-        total_loss += loss.item()
+        batch_loss = loss.item()
+        total_loss += batch_loss
+        batch_losses.append(batch_loss)
 
-    print(f"Epoch {epoch+1} - Loss: {total_loss/len(train_loader):.4f}")
+        # 更新进度条显示当前批次损失
+        progress_bar.set_postfix({"batch_loss": f"{batch_loss:.4f}"})
+
+        # 将批次损失添加到TensorBoard
+        global_step = epoch * len(train_loader) + i
+        writer.add_scalar("Loss/batch", batch_loss, global_step)
+
+    avg_loss = total_loss / len(train_loader)
+    epochs.append(epoch + 1)
+    losses.append(avg_loss)
+
+    # 将平均损失添加到TensorBoard
+    writer.add_scalar("Loss/epoch", avg_loss, epoch)
+
+    print(f"Epoch {epoch+1}/{NUM_EPOCHS} - Loss: {avg_loss:.4f}")
+
+    # 每10个epoch保存一次损失图表，或者在训练结束时
+    if (epoch + 1) % 10 == 0 or epoch == NUM_EPOCHS - 1:
+        plt.figure(figsize=(10, 6))
+        plt.plot(epochs, losses, marker="o", linestyle="-", color="b")
+        plt.title("训练损失曲线")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.grid(True)
+        plt.savefig(os.path.join(charts_dir, f"loss_curve_epoch_{epoch+1}.png"))
+        plt.close()
 
 model_path = os.path.join(dataset_dir, "privacy_detection_model.pth")
 # 保存模型
 torch.save(model.state_dict(), model_path)
+
+# 训练结束后，保存最终的损失曲线
+plt.figure(figsize=(10, 6))
+plt.plot(epochs, losses, marker="o", linestyle="-", color="b")
+plt.title("最终训练损失曲线")
+plt.xlabel("Epoch")
+plt.ylabel("Loss")
+plt.grid(True)
+plt.savefig(os.path.join(charts_dir, "final_loss_curve.png"))
+plt.close()
+
+# 关闭TensorBoard writer
+writer.close()
+
+# 训练后添加量化代码
+quantized_model = torch.quantization.quantize_dynamic(
+    model, {torch.nn.Linear}, dtype=torch.qint8  # 量化所有Linear层
+)
+
+# 保存量化模型
+quant_model_path = os.path.join(dataset_dir, "quantized_privacy_model.pth")
+torch.save(quantized_model.state_dict(), quant_model_path)
+
+# 转换并保存ONNX模型
+onnx_model_dir = os.path.join(base_dir, "onnx_model")
+os.makedirs(onnx_model_dir, exist_ok=True)
+
+# 使用Hugging Face Optimum库转换
+ORTModelForSequenceClassification.from_pretrained(
+    model_save_dir, export=True
+).save_pretrained(onnx_model_dir)
