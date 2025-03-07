@@ -29,15 +29,15 @@ class LogInterface(Ui_log, QWidget):
 
         # 设置水平表头并隐藏垂直表头 - 添加来源进程
         self.tableWidget.setHorizontalHeaderLabels(
-            ["时间", "风险等级", "哈希值", "来源进程", "预览"]
+            ["时间", "风险等级", "内容哈希值", "来源进程", "预览"]
         )
 
         # 设置列宽 - 调整以适应新列
         self.tableWidget.setColumnWidth(0, 160)  # 时间列
-        self.tableWidget.setColumnWidth(1, 80)  # 风险等级列
-        self.tableWidget.setColumnWidth(2, 150)  # 哈希值列
+        self.tableWidget.setColumnWidth(1, 100)  # 风险等级列
+        self.tableWidget.setColumnWidth(2, 100)  # 哈希值列
         self.tableWidget.setColumnWidth(3, 120)  # 来源进程列
-        self.tableWidget.setColumnWidth(4, 300)  # 预览列
+        self.tableWidget.setColumnWidth(4, 180)  # 预览列
 
         # 加载数据
         self.load_clipboard_data()

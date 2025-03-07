@@ -12,6 +12,7 @@ import asyncio
 import ctypes
 from ctypes import wintypes
 import psutil
+import sqlite3
 
 
 class SensitiveDetector:
@@ -138,6 +139,30 @@ async def show_security_notification(message: str) -> None:
     )
 
 
+def load_whitelist(db_path="whitelist.db") -> set:
+    """
+    加载白名单数据库
+
+    Args:
+        db_path: 白名单数据库路径
+
+    Returns:
+        set: 白名单进程集合
+    """
+    whitelist = set()
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT app_name FROM whitelist")
+        rows = cursor.fetchall()
+        whitelist = {row[0] for row in rows}
+        conn.close()
+        print("白名单加载成功")
+    except sqlite3.Error as e:
+        print(f"加载白名单失败: {e}")
+    return whitelist
+
+
 async def monitor_clipboard_with_detection(
     detector: SensitiveDetector, interval: float = 0.5
 ) -> None:
@@ -151,6 +176,10 @@ async def monitor_clipboard_with_detection(
     logger = ClipboardLogger()
     print("\n开始监控剪贴板，按 Ctrl+C 停止...\n")
 
+    # 加载白名单
+    whitelist = load_whitelist()
+    # print(f"白名单进程: {whitelist}")
+
     try:
         while True:
             try:
@@ -161,6 +190,18 @@ async def monitor_clipboard_with_detection(
 
                 # 获取前台进程信息
                 process_name, process_path = get_foreground_process_info()
+
+                # 检查进程是否在白名单中
+                if process_name in whitelist:
+                    print(f"来源进程 {process_name} 在白名单中，跳过检测")
+                    # 每次有剪贴板操作都记录到数据库
+                    logger.log_clipboard(
+                        current_content, {}, process_name, process_path
+                    )
+                    print("\n已记录到数据库")
+                    last_content = current_content
+                    await asyncio.sleep(interval)
+                    continue
 
                 print("\n" + "=" * 60)
                 print(f"检测到新的剪贴板内容:")
@@ -184,12 +225,11 @@ async def monitor_clipboard_with_detection(
                     except Exception as e:
                         print(f"通知显示失败: {e}")
 
-                    logger.log_clipboard(
-                        current_content, results, process_name, process_path
-                    )
-                    print("\n已记录到数据库")
-                else:
-                    print("\n未发现敏感信息")
+                # 每次有剪贴板操作都记录到数据库
+                logger.log_clipboard(
+                    current_content, results, process_name, process_path
+                )
+                print("\n已记录到数据库")
 
                 print("=" * 60 + "\n")
                 last_content = current_content

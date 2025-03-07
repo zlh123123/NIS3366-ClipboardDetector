@@ -2,8 +2,13 @@ import asyncio
 from typing import Dict, Optional, Any
 import pyperclip
 
-from detector_base import SensitiveDetector, get_foreground_process_info
-from detector_model import PrivacyDetector, show_security_notification
+from detector_base import (
+    SensitiveDetector,
+    get_foreground_process_info,
+    load_whitelist,
+    show_security_notification,
+)
+from detector_model import PrivacyDetector
 from logger import ClipboardLogger
 
 
@@ -61,6 +66,10 @@ async def monitor_clipboard_with_hybrid_detection(
     logger = ClipboardLogger()
     print("\n开始使用混合检测方式监控剪贴板，按 Ctrl+C 停止...\n")
 
+    # 加载白名单
+    whitelist = load_whitelist()
+    # print(f"白名单进程: {whitelist}")
+
     try:
         while True:
             try:
@@ -71,6 +80,18 @@ async def monitor_clipboard_with_hybrid_detection(
 
                 # 获取前台进程信息
                 process_name, process_path = get_foreground_process_info()
+
+                # 检查进程是否在白名单中
+                if process_name in whitelist:
+                    print(f"来源进程 {process_name} 在白名单中，跳过检测")
+                    # 每次有剪贴板操作都记录到数据库
+                    logger.log_clipboard(
+                        current_content, {}, process_name, process_path
+                    )
+                    print("\n已记录到数据库")
+                    last_content = current_content
+                    await asyncio.sleep(interval)
+                    continue
 
                 print("\n" + "=" * 60)
                 print(f"检测到新的剪贴板内容:")

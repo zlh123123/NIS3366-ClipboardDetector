@@ -9,8 +9,9 @@ from qfluentwidgets import (NavigationItemPosition, MessageBox, setTheme, Theme,
 from qfluentwidgets import FluentIcon as FIF
 
 
-from view.stop_watch_interface import StopWatchInterface
+from view.rulesetting import RuleSetting
 from view.loginterface import LogInterface
+from view.dashboard import DashBoard
 import os
 
 
@@ -21,7 +22,8 @@ class Window(SplitFluentWindow):
 
         # create sub interface
         self.logInterface = LogInterface(self)
-        self.stopWatchInterface = StopWatchInterface(self)
+        self.rulesetting = RuleSetting(self)
+        self.dashboard = DashBoard(self)
 
         self.initNavigation()
         self.initWindow()
@@ -29,14 +31,13 @@ class Window(SplitFluentWindow):
     def initNavigation(self):
         # add sub interface
         self.addSubInterface(self.logInterface, FIF.VPN, "日志")
-        self.addSubInterface(self.stopWatchInterface, FIF.STOP_WATCH, '秒表')
-
-
+        self.addSubInterface(self.rulesetting, FIF.SETTING, "规则设置")
+        self.addSubInterface(self.dashboard, FIF.SPEED_HIGH, "数据概览")
 
         self.navigationInterface.setExpandWidth(280)
 
     def initWindow(self):
-        self.resize(1000, 600)
+        self.resize(800, 600)
         script_dir = os.path.dirname(os.path.abspath(__file__))
         icon_path = os.path.join(script_dir, "image", "icon.png")
         self.setWindowIcon(QIcon(icon_path))
@@ -45,8 +46,6 @@ class Window(SplitFluentWindow):
         desktop = QApplication.desktop().availableGeometry()
         w, h = desktop.width(), desktop.height()
         self.move(w//2 - self.width()//2, h//2 - self.height()//2)
-
-
 
 
 if __name__ == '__main__':

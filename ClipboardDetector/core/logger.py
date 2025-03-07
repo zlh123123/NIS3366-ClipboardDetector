@@ -2,6 +2,7 @@ import sqlite3
 import hashlib
 from cryptography.fernet import Fernet
 import os
+import datetime
 
 
 class ClipboardLogger:
@@ -38,7 +39,7 @@ class ClipboardLogger:
                 conn.execute(
                     """CREATE TABLE clipboard_logs (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    timestamp DATETIME,
                     content_hash TEXT NOT NULL,
                     risk_level TEXT CHECK(risk_level IN ('low', 'medium', 'high')),
                     preview TEXT,
@@ -88,6 +89,7 @@ class ClipboardLogger:
             process_name: 来源进程名称
             process_path: 来源进程路径
         """
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         content_hash = hashlib.sha256(content.encode()).hexdigest()
         risk_level = self._calculate_risk_level(detection_results)
         preview = self._create_preview(content, detection_results)
@@ -96,9 +98,10 @@ class ClipboardLogger:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """INSERT INTO clipboard_logs 
-                (content_hash, risk_level, preview, encrypted_data, process_name, process_path)
-                VALUES (?, ?, ?, ?, ?, ?)""",
+                (timestamp, content_hash, risk_level, preview, encrypted_data, process_name, process_path)
+                VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (
+                    timestamp,
                     content_hash,
                     risk_level,
                     preview,
