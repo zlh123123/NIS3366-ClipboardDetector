@@ -1,6 +1,7 @@
 # coding:utf-8
 import sqlite3
 import psutil
+import subprocess
 from PyQt5.QtWidgets import (
     QWidget,
     QFileDialog,
@@ -20,6 +21,8 @@ from PyQt5.QtCore import Qt, QAbstractTableModel, QSortFilterProxyModel
 from qfluentwidgets import FluentIcon, InfoBar, InfoBarPosition
 
 from view.Ui_rulesetting import Ui_rulesetting
+import os
+import sys
 
 
 class ProcessTableModel(QAbstractTableModel):
@@ -76,68 +79,48 @@ class RuleSetting(Ui_rulesetting, QWidget):
         self.pushButton_3.clicked.connect(self.remove_whitelist_app)
 
         self.load_whitelist()  # 初始化时加载白名单
+        self.current_process = None  # 用于存储当前进程
 
     def on_index_changed(self, index):
-        if self.pushButton.itemText(index) == "深度模型":
-            InfoBar.success(
-                title="选择深度模型",
-                content="请等待模型加载完成，深度学习模型比正则匹配更准确，但是速度较慢",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self,
+        selected_text = self.pushButton.itemText(index)
+        script_path = None
+        info_content = None
+        info_title = None
+
+        script_dir = os.path.dirname(os.path.abspath(__file__))  # 获取当前脚本所在目录
+        ui_dir = os.path.dirname(script_dir)  # 获取ui目录
+        base_dir = os.path.dirname(ui_dir)  # 获取根目录
+        core_dir = os.path.join(base_dir, "core")  # 获取Dataset目录
+
+        # 根据选择的选项确定要运行的脚本
+        if selected_text == "深度模型":
+            script_path = os.path.join(core_dir, "detector_model.py")
+            info_content = (
+                "请等待模型加载完成，深度学习模型比正则匹配更准确，但是速度较慢"
             )
-        elif self.pushButton.itemText(index) == "深度模型onnx加速":
-            InfoBar.success(
-                title="选择深度模型onnx加速",
-                content="此选项更利于配置较低的设备，能在不影响精度的情况下提高检测速度",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self,
+            info_title = "选择深度模型"
+        elif selected_text == "深度模型onnx加速":
+            script_path = os.path.join(core_dir, "detector_model_onnx.py")
+            info_content = (
+                "此选项更利于配置较低的设备，能在不影响精度的情况下提高检测速度"
             )
-        elif self.pushButton.itemText(index) == "深度模型+正则匹配（推荐）":
-            InfoBar.success(
-                title="选择深度模型+正则匹配",
-                content="此选项利用深度模型和正则匹配相结合，能够在不影响速度的情况下提高检测精度",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self,
-            )
-        elif self.pushButton.itemText(index) == "低强度正则匹配":
-            InfoBar.success(
-                title="选择低强度正则匹配",
-                content="此选项利用正则匹配，速度快，但是精度较低，易产生误报",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self,
-            )
-        elif self.pushButton.itemText(index) == "中等强度正则匹配":
-            InfoBar.success(
-                title="选择中等强度正则匹配",
-                content="此选项利用正则匹配，精度较高，适合大多数用户",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self,
-            )
-        elif self.pushButton.itemText(index) == "高强度正则匹配":
-            InfoBar.success(
-                title="选择高弪度正则匹配",
-                content="此选项利用正则匹配，精度最高，但是易产生漏报",
-                orient=Qt.Horizontal,
-                isClosable=True,
-                position=InfoBarPosition.TOP,
-                duration=2000,
-                parent=self,
-            )
+            info_title = "选择深度模型onnx加速"
+        elif selected_text == "深度模型+正则匹配（推荐）":
+            script_path = os.path.join(core_dir, "detector_model_rules.py")
+            info_content = "此选项利用深度模型和正则匹配相结合，能够在不影响速度的情况下提高检测精度"
+            info_title = "选择深度模型+正则匹配"
+        elif selected_text == "低强度正则匹配":
+            script_path = os.path.join(core_dir, "detector_weak.py")
+            info_content = "此选项利用正则匹配，速度快，但是精度较低，易产生误报"
+            info_title = "选择低强度正则匹配"
+        elif selected_text == "中等强度正则匹配":
+            script_path = os.path.join(core_dir, "detector_base.py")
+            info_content = "此选项利用正则匹配，精度较高，适合大多数用户"
+            info_title = "选择中等强度正则匹配"
+        elif selected_text == "高强度正则匹配":
+            script_path = os.path.join(core_dir, "detector_strong.py")
+            info_content = "此选项利用正则匹配，精度最高，但是易产生漏报"
+            info_title = "选择高强度正则匹配"
         else:
             InfoBar.error(
                 title="未选择检测器",
@@ -148,6 +131,49 @@ class RuleSetting(Ui_rulesetting, QWidget):
                 duration=2000,
                 parent=self,
             )
+            return
+
+        # 1. 停止当前进程
+        if self.current_process and self.current_process.poll() is None:
+            try:
+                pid = self.current_process.pid
+                process = psutil.Process(pid)
+                process.terminate()  # 或者使用 process.kill() 强制终止
+                self.current_process.wait()  # 等待进程结束
+                print(f"进程 {pid} 已停止")
+            except psutil.NoSuchProcess:
+                print(f"进程 {pid} 不存在")
+            except Exception as e:
+                print(f"停止进程时出错: {e}")
+
+        # 2. 启动新的进程
+        if script_path:
+            try:
+                python_executable = sys.executable  # 获取当前 Python 解释器路径
+                self.current_process = subprocess.Popen(
+                    [python_executable, script_path]
+                )
+                print(f"启动新进程，PID: {self.current_process.pid}")
+                InfoBar.success(
+                    title=info_title,
+                    content=info_content,
+                    orient=Qt.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=2000,
+                    parent=self,
+                )
+            except Exception as e:
+                print(f"启动进程时出错: {e}")
+                InfoBar.error(
+                    title="启动检测器失败",
+                    content=f"无法启动所选的检测器: {e}",
+                    orient=Qt.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=2000,
+                    parent=self,
+                )
 
     def choosewhitesheetapp(self):
         dialog = QDialog(self)
