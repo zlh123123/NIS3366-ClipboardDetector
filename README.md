@@ -17,3 +17,5 @@ pip install -r requirements_train.txt		# 除运行主程序外，还需运行模
 python NIS3366-ClipboardDetector/ClipboardDetector/ui/demo.py
 ```
 
+> 若需要使用深度模型，可从[夸克网盘](https://pan.quark.cn/s/4a3298184f1e)或[交大云盘](
+> https://pan.sjtu.edu.cn/web/share/b7014edc9de2e9e1b22b7a9128b0e654)中下载模型，并将`privacy_detection_model.pth`存放于`NIS3366-ClipboardDetector\ModelTrainCode\Dataset`下，将`onnx_model`文件夹存放于`NIS3366-ClipboardDetector\ModelTrainCode`下
