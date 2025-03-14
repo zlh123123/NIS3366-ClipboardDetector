@@ -3,7 +3,7 @@
 
 ---
 
-## 部署指南
+## 部署指南🈯
 
 ```sh
 # 创建Python 3.12虚拟环境，以VENV为例，也可使用conda等
@@ -19,3 +19,21 @@ python NIS3366-ClipboardDetector/ClipboardDetector/ui/demo.py
 
 > 若需要使用深度模型，可从[夸克网盘](https://pan.quark.cn/s/4a3298184f1e)或[交大云盘](
 > https://pan.sjtu.edu.cn/web/share/b7014edc9de2e9e1b22b7a9128b0e654)中下载模型，并将`privacy_detection_model.pth`存放于`NIS3366-ClipboardDetector\ModelTrainCode\Dataset`下，将`onnx_model`文件夹存放于`NIS3366-ClipboardDetector\ModelTrainCode`下
+
+## 功能展示💢
+
+#### 系统通知✅
+
+![系统通知](https://mypicturebed.obs.cn-east-3.myhuaweicloud.com/系统通知.gif)
+
+#### 日志查询❓
+
+![日志查询](https://mypicturebed.obs.cn-east-3.myhuaweicloud.com/日志查询.gif)
+
+#### 白名单设定与规则选择
+
+![白名单设定与规则选择](https://mypicturebed.obs.cn-east-3.myhuaweicloud.com/白名单设定与规则选择.gif)
+
+#### 数据统计
+
+![数据统计](https://mypicturebed.obs.cn-east-3.myhuaweicloud.com/数据统计.gif)
